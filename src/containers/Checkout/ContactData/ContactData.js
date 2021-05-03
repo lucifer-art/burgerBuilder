@@ -4,6 +4,10 @@ import classes from './ContactData.module.css';
 import axios from '../../../axios-orders';
 import Spinner from '../../../components/UI/Spinner/Spinner';
 import Input from '../../../components/UI/Input/Input';
+import { connect } from 'react-redux';
+import withErrorHandler from '../../../hoc/WithErrorHandler/WithErrorHandler';
+import * as actions from '../../../store/actions/index';
+import { updatedObject } from '../../../store/utility'
 
 class ContactData extends Component{
     state = {
@@ -85,34 +89,26 @@ class ContactData extends Component{
                 validation:{
                     required:true
                 },
-                value: '',
+                value: 'fastest',
                 valid: true
             },
         },
         formIsValid:false,
-        loading: false
     }
     
     orderHandler = (event) => {
         event.preventDefault();
-        this.setState({ loading: true });
         const formData = {};
         for(let formElementIdentifier in this.state.orderForm){
             formData[formElementIdentifier] = this.state.orderForm[formElementIdentifier].value;
         }
         const order = {
-            ingredients: this.props.ingredients,
+            ingredients: this.props.ings,
             price: this.props.price,
-            orderData:formData
+            orderData:formData,
+            userId: this.props.userId
         }
-        axios.post('/orders.json', order).then(response => {
-            console.log(response);
-            this.setState({ loading: false });
-            this.props.history.push('/');
-        }).catch(error => {
-            this.setState({ loading: false });
-            console.log(error);
-        })
+        this.props.onOrderBurger(order,this.props.token);
     }
 
     checkValidity(value,rules){
@@ -131,16 +127,14 @@ class ContactData extends Component{
     }
 
     inputChangedHandler = (event,inputIdentifier)=>{
-        const updatedOrderForm = {
-            ...this.state.orderForm
-        }
-        const updatedFormElement = {
-            ...updatedOrderForm[inputIdentifier]
-        }
-        updatedFormElement.value = event.target.value;
-        updatedFormElement.valid = this.checkValidity(updatedFormElement.value,updatedFormElement.validation);
-        updatedFormElement.touched = true;
-        updatedOrderForm[inputIdentifier] = updatedFormElement;
+        const updatedFormElement = updatedObject(this.state.orderForm[inputIdentifier],{
+            value:event.target.value,
+            valid:this.checkValidity(event.target.value,this.state.orderForm[inputIdentifier].validation),
+            touched:true
+        })
+        const updatedOrderForm = updatedObject(this.state.orderForm,{
+            [inputIdentifier]:updatedFormElement
+        })
         let formIsValid = true;
         for(let inputIdentifier in updatedOrderForm) {
             formIsValid = updatedOrderForm[inputIdentifier].valid && formIsValid;
@@ -157,7 +151,7 @@ class ContactData extends Component{
             })
         }
         let form = null;
-        if(this.state.loading) {
+        if(this.props.loading) {
             form = <Spinner />
         } else {
             form = (
@@ -178,7 +172,7 @@ class ContactData extends Component{
                 </form>
             );
         }
-        // console.log(this.props)
+    
         return(
             <div className={classes.ContactData}>
                 <h4>Provide your Contact Details</h4>
@@ -189,4 +183,21 @@ class ContactData extends Component{
         )
     }
 }
-export default ContactData;
+
+const mapStateToProps = state=>{
+    return{
+        ings:state.reducer.ingredients,
+        price: state.reducer.totalPrice,
+        loading: state.order.loading,
+        token:state.auth.token,
+        userId: state.auth.userId
+    }
+}
+
+const mapDispatchTOProps = dispatch => {
+    return {
+        onOrderBurger: (orderData,token)=> dispatch(actions.purchaseBurger(orderData,token))
+    }
+}
+
+export default connect(mapStateToProps,mapDispatchTOProps)(withErrorHandler(ContactData,axios));
